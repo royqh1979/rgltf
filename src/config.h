@@ -125,10 +125,10 @@
 #define RL_DEFAULT_SHADER_ATTRIB_NAME_TANGENT      "vertexTangent"     // Binded by default to shader location: 4
 #define RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD2    "vertexTexCoord2"   // Binded by default to shader location: 5
 
-#define RL_DEFAULT_SHADER_UNIFORM_NAME_MVP         "mvp"               // model-view-projection matrix
+#define RL_DEFAULT_SHADER_UNIFORM_NAME_MVP         "mvp"               // pModel-view-projection matrix
 #define RL_DEFAULT_SHADER_UNIFORM_NAME_VIEW        "matView"           // view matrix
 #define RL_DEFAULT_SHADER_UNIFORM_NAME_PROJECTION  "matProjection"     // projection matrix
-#define RL_DEFAULT_SHADER_UNIFORM_NAME_MODEL       "matModel"          // model matrix
+#define RL_DEFAULT_SHADER_UNIFORM_NAME_MODEL       "matModel"          // pModel matrix
 #define RL_DEFAULT_SHADER_UNIFORM_NAME_NORMAL      "matNormal"         // normal matrix (transpose(inverse(matModelView))
 #define RL_DEFAULT_SHADER_UNIFORM_NAME_COLOR       "colDiffuse"        // color diffuse (base tint color, multiplied by texture color)
 #define RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE0  "texture0"          // texture0 (texture slot active 0)
@@ -195,7 +195,7 @@
 //------------------------------------------------------------------------------------
 // Module: rmodels - Configuration Flags
 //------------------------------------------------------------------------------------
-// Selected desired model fileformats to be supported for loading
+// Selected desired pModel fileformats to be supported for loading
 #define SUPPORT_FILEFORMAT_OBJ      1
 #define SUPPORT_FILEFORMAT_MTL      1
 #define SUPPORT_FILEFORMAT_IQM      1

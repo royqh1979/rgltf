@@ -129,7 +129,6 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
 	GLTFModel model = { 0 };
 	int *mesh_id_starts = NULL;
 	int *mesh_id_ends = NULL;
-	TRACELOG(LOG_INFO, "What happened?1");
 
 	// glTF file loading
 	unsigned int dataSize = 0;
@@ -137,7 +136,6 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
 
 	if (fileData == NULL) return model;
 
-	TRACELOG(LOG_INFO, "What happened?2");
 	// glTF data loading
 	cgltf_options options = { 0 };
 	cgltf_data *data = NULL;
@@ -162,14 +160,18 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
 		result = cgltf_load_buffers(&options, data, fileName);
 		if (result != cgltf_result_success) TRACELOG(LOG_INFO, "MODEL: [%s] Failed to load mesh/material buffers", fileName);
 
-		mesh_id_starts = RL_CALLOC(data->nodes_count,sizeof(int));
-		mesh_id_ends = RL_CALLOC(data->nodes_count,sizeof(int));
+        for (int i=0;i<data->nodes_count;i++) {
+            TRACELOG(LOG_DEBUG, "node mesh %d %s", data->nodes[i].mesh, data->nodes[i].name);
+        }
+
+		mesh_id_starts = RL_CALLOC(data->meshes_count,sizeof(int));
+		mesh_id_ends = RL_CALLOC(data->meshes_count,sizeof(int));
 
 		int primitivesCount = 0;
 		// NOTE: We will load every primitive in the glTF as a separate raylib mesh
 		for (unsigned int i = 0; i < data->meshes_count; i++) primitivesCount += (int)data->meshes[i].primitives_count;
 
-		// Load our model data: meshes and materials
+		// Load our pModel data: meshes and materials
 		model.meshCount = primitivesCount;
 		model.meshes = RL_CALLOC(model.meshCount, sizeof(Mesh));
 		for (int i = 0; i < model.meshCount; i++) model.meshes[i].vboId = (unsigned int*)RL_CALLOC(MAX_MESH_VERTEX_BUFFERS, sizeof(unsigned int));
@@ -270,6 +272,8 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
 			// Other possible materials not supported by raylib pipeline:
 			// has_clearcoat, has_transmission, has_volume, has_ior, has specular, has_sheen
 		}
+
+        TRACELOG(LOG_DEBUG,"%x",data->meshes);
 
 		// Load meshes data
 		//----------------------------------------------------------------------------------------------------
@@ -438,7 +442,7 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
 				for (int m = 0; m < data->materials_count; m++)
 				{
 					// The primitive actually keeps the pointer to the corresponding material,
-					// raylib instead assigns to the mesh the by its index, as loaded in model.materials array
+					// raylib instead assigns to the mesh the by its index, as loaded in pModel.materials array
 					// To get the index, we check if material pointers match and we assign the corresponding index,
 					// skipping index 0, the default material
 					if (&data->materials[m] == data->meshes[i].primitives[p].material)
@@ -447,24 +451,38 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
 						break;
 					}
 				}
-//				if (model.meshMaterial[meshIndex]<0 || model.meshMaterial[meshIndex]>=model.materialCount)
-//					model.meshMaterial[meshIndex] = 0;
+//				if (pModel.meshMaterial[meshIndex]<0 || pModel.meshMaterial[meshIndex]>=pModel.materialCount)
+//					pModel.meshMaterial[meshIndex] = 0;
 
 				meshIndex++;       // Move to next mesh
 			}
 			mesh_id_ends[i]=meshIndex;
-			mesh_id_ends[i]=meshIndex;
 		}
+        TRACELOG(LOG_DEBUG,"%x", data->meshes);
 
 		// Load node data
 		model.nodeCount = data->nodes_count;
 		model.nodes = RL_CALLOC(data->nodes_count, sizeof(GLTFModel));
+        TRACELOG(LOG_DEBUG,"Loading nodes %d", model.nodeCount);
 		memset(model.nodes,0,data->nodes_count * sizeof(GLTFModel));
+        TRACELOG(LOG_DEBUG,"-----------", model.nodeCount);
 		for (unsigned int i = 0; i < data->nodes_count; i++) {
-			int mesh_id= (data->nodes[i].mesh - data->meshes);
-			model.nodes[i].meshStart = mesh_id_starts[mesh_id];
-			model.nodes[i].meshEnd = mesh_id_ends[mesh_id];
-			Matrix matScale;
+            if (data->nodes[i].mesh == NULL) {
+                model.nodes[i].meshStart = -1;
+                model.nodes[i].meshEnd = -1;
+            } else {
+                int mesh_id = (data->nodes[i].mesh - data->meshes);
+                TRACELOG(LOG_DEBUG, "Mesh: %x %x %d %d", data->nodes[i].mesh, data->meshes, mesh_id,
+                         data->meshes_count);
+                model.nodes[i].meshStart = mesh_id_starts[mesh_id];
+                model.nodes[i].meshEnd = mesh_id_ends[mesh_id];
+            }
+
+            model.nodes[i].childrenCount = data->nodes[i].children_count;
+            model.nodes[i].children = RL_CALLOC(model.nodes[i].childrenCount,sizeof(int));
+            for (unsigned  int j = 0; j < data->nodes[i].children_count; j++)
+                model.nodes[i].children[j]=data->nodes[i].children[j]-data->nodes;
+            Matrix matScale;
 			Matrix matRotation;
 			Matrix matTranslation;
 
@@ -501,6 +519,7 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
 			}
 			model.nodes[i].transformMatrix = MatrixMultiply(MatrixMultiply(matScale, matRotation), matTranslation);
 		}
+        TRACELOG(LOG_DEBUG,"Loading scene");
 
 		// Load scene data
 		if (data->scenes_count > 0) {
@@ -540,10 +559,10 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
                         if ((attribute->component_type == cgltf_component_type_r_8u) && (attribute->type == cgltf_type_vec4))
                         {
                             // Init raylib mesh bone ids to copy glTF attribute data
-                            model.meshes[meshIndex].boneIds = RL_CALLOC(model.meshes[meshIndex].vertexCount*4, sizeof(unsigned char));
+                            pModel.meshes[meshIndex].boneIds = RL_CALLOC(pModel.meshes[meshIndex].vertexCount*4, sizeof(unsigned char));
 
                             // Load 4 components of unsigned char data type into mesh.boneIds
-                            LOAD_ATTRIBUTE(attribute, 4, unsigned char, model.meshes[meshIndex].boneIds)
+                            LOAD_ATTRIBUTE(attribute, 4, unsigned char, pModel.meshes[meshIndex].boneIds)
                         }
                         else TRACELOG(LOG_WARNING, "MODEL: [%s] Joint attribute data format not supported, use vec4 u8", fileName);
                     }
@@ -554,10 +573,10 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
                         if ((attribute->component_type == cgltf_component_type_r_32f) && (attribute->type == cgltf_type_vec4))
                         {
                             // Init raylib mesh bone weight to copy glTF attribute data
-                            model.meshes[meshIndex].boneWeights = RL_CALLOC(model.meshes[meshIndex].vertexCount*4, sizeof(float));
+                            pModel.meshes[meshIndex].boneWeights = RL_CALLOC(pModel.meshes[meshIndex].vertexCount*4, sizeof(float));
 
                             // Load 4 components of float data type into mesh.boneWeights
-                            LOAD_ATTRIBUTE(attribute, 4, float, model.meshes[meshIndex].boneWeights)
+                            LOAD_ATTRIBUTE(attribute, 4, float, pModel.meshes[meshIndex].boneWeights)
                         }
                         else TRACELOG(LOG_WARNING, "MODEL: [%s] Joint weight attribute data format not supported, use vec4 float", fileName);
                     }
@@ -582,7 +601,7 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
 
 }
 
-// Draw a model (with texture if set)
+// Draw a pModel (with texture if set)
 void DrawGLTFModel(GLTFModel model, Vector3 position, float scale, Color tint)
 {
 	Vector3 vScale = { scale, scale, scale };
@@ -591,7 +610,7 @@ void DrawGLTFModel(GLTFModel model, Vector3 position, float scale, Color tint)
 	DrawGLTFModelEx(model, position, rotationAxis, 0.0f, vScale, tint);
 }
 
-// Draw a model with extended parameters
+// Draw a pModel with extended parameters
 void DrawGLTFModelEx(GLTFModel model, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale, Color tint)
 {
 	// Calculate transformation matrix from function parameters
@@ -602,12 +621,12 @@ void DrawGLTFModelEx(GLTFModel model, Vector3 position, Vector3 rotationAxis, fl
 
 	Matrix matTransform = MatrixMultiply(MatrixMultiply(matScale, matRotation), matTranslation);
 
-	// Combine model transformation matrix (model.transform) with matrix generated by function parameters (matTransform)
+	// Combine pModel transformation matrix (pModel.transform) with matrix generated by function parameters (matTransform)
 	model.transform = MatrixMultiply(model.transform, matTransform);
 	if (model.scene >= 0
 		&& model.scene < model.sceneCount
 		&& model.scenes[model.scene].nodeCount>0) { // we have a scene to draw
-		DrawGLTFModelSceneEx(model, model.scene, position, rotationAxis, rotationAngle, scale, tint);
+		DrawGLTFScene(model, model.scene, model.transform, tint);
 	} else {
 		for (int i = 0; i < model.meshCount; i++) {
 			Color color = model.materials[model.meshMaterial[i]].maps[MATERIAL_MAP_DIFFUSE].color;
@@ -624,7 +643,7 @@ void DrawGLTFModelEx(GLTFModel model, Vector3 position, Vector3 rotationAxis, fl
 	}
 }
 
-// Draw a model wires (with texture if set)
+// Draw a pModel wires (with texture if set)
 void DrawGLTFModelWires(GLTFModel model, Vector3 position, float scale, Color tint)
 {
 	rlEnableWireMode();
@@ -634,7 +653,7 @@ void DrawGLTFModelWires(GLTFModel model, Vector3 position, float scale, Color ti
 	rlDisableWireMode();
 }
 
-// Draw a model wires (with texture if set) with extended parameters
+// Draw a pModel wires (with texture if set) with extended parameters
 void DrawGLTFModelWiresEx(GLTFModel model, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale, Color tint)
 {
 	rlEnableWireMode();
@@ -644,66 +663,61 @@ void DrawGLTFModelWiresEx(GLTFModel model, Vector3 position, Vector3 rotationAxi
 	rlDisableWireMode();
 }
 
-// Draw a model (with texture if set)
-void DrawGLTFModelScene(GLTFModel model, int scene_id, Vector3 position, float scale, Color tint)
-{
-	Vector3 vScale = { scale, scale, scale };
-	Vector3 rotationAxis = { 0.0f, 1.0f, 0.0f };
+// Draw a Model's scene (with texture if set)
+void DrawGLTFNode(GLTFModel model,int node_id, Matrix matTransform, Color tint) {
+    if (node_id >= 0
+        && node_id < model.nodeCount) {
+        GLTFNode node = model.nodes[node_id];
+        Matrix nodeTransform = MatrixMultiply(node.transformMatrix, matTransform);
+        if (node.childrenCount>0) {
+            for (int i = 0; i < node.childrenCount; i++){
+                DrawGLTFNode(model,node.children[i],nodeTransform,tint);
+            }
+        } else {
+            for (int j = node.meshStart; j < node.meshEnd; j++) {
+                Color color = model.materials[model.meshMaterial[j]].maps[MATERIAL_MAP_DIFFUSE].color;
+                Color colorTint = WHITE;
+                colorTint.r = (unsigned char) ((((float) color.r / 255.0) * ((float) tint.r / 255.0)) * 255.0f);
+                colorTint.g = (unsigned char) ((((float) color.g / 255.0) * ((float) tint.g / 255.0)) * 255.0f);
+                colorTint.b = (unsigned char) ((((float) color.b / 255.0) * ((float) tint.b / 255.0)) * 255.0f);
+                colorTint.a = (unsigned char) ((((float) color.a / 255.0) * ((float) tint.a / 255.0)) * 255.0f);
 
-	DrawGLTFModelSceneEx(model, scene_id, position, rotationAxis, 0.0f, vScale, tint);
+                model.materials[model.meshMaterial[j]].maps[MATERIAL_MAP_DIFFUSE].color = colorTint;
+                DrawMesh(model.meshes[j], model.materials[model.meshMaterial[j]], nodeTransform);
+                model.materials[model.meshMaterial[j]].maps[MATERIAL_MAP_DIFFUSE].color = color;
+            }
+        }
+    }
 }
 
-// Draw a model with extended parameters
-void DrawGLTFModelSceneEx(GLTFModel model, int scene_id, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale, Color tint)
+// Draw a Model's scene wires (with texture if set)
+void DrawGLTFNodeWires(GLTFModel model, int node_id, Matrix matTransform, Color tint)
 {
-	// Calculate transformation matrix from function parameters
-	// Get transform matrix (rotation -> scale -> translation)
-	Matrix matScale = MatrixScale(scale.x, scale.y, scale.z);
-	Matrix matRotation = MatrixRotate(rotationAxis, rotationAngle*DEG2RAD);
-	Matrix matTranslation = MatrixTranslate(position.x, position.y, position.z);
+    rlEnableWireMode();
 
-	Matrix matTransform = MatrixMultiply(MatrixMultiply(matScale, matRotation), matTranslation);
+    DrawGLTFNode(model, node_id, matTransform, tint);
 
-	// Combine model transformation matrix (model.transform) with matrix generated by function parameters (matTransform)
-	model.transform = MatrixMultiply(model.transform, matTransform);
+    rlDisableWireMode();
+}
 
+// Draw a Model's scene with extended parameters
+void DrawGLTFScene(GLTFModel model, int scene_id, Matrix matTransform, Color tint)
+{
 	if (scene_id >= 0
 		&& scene_id < model.sceneCount) {
 		for (int i = 0; i < model.scenes[scene_id].nodeCount; i++) {
 			int node_id = model.scenes[scene_id].nodes[i];
-			Matrix transform = MatrixMultiply(model.transform, model.nodes[node_id].transformMatrix);
-			for (int j = model.nodes[node_id].meshStart; j < model.nodes[node_id].meshEnd; j++) {
-				Color color = model.materials[model.meshMaterial[j]].maps[MATERIAL_MAP_DIFFUSE].color;
-				Color colorTint = WHITE;
-				colorTint.r = (unsigned char) ((((float) color.r / 255.0) * ((float) tint.r / 255.0)) * 255.0f);
-				colorTint.g = (unsigned char) ((((float) color.g / 255.0) * ((float) tint.g / 255.0)) * 255.0f);
-				colorTint.b = (unsigned char) ((((float) color.b / 255.0) * ((float) tint.b / 255.0)) * 255.0f);
-				colorTint.a = (unsigned char) ((((float) color.a / 255.0) * ((float) tint.a / 255.0)) * 255.0f);
-
-				model.materials[model.meshMaterial[j]].maps[MATERIAL_MAP_DIFFUSE].color = colorTint;
-				DrawMesh(model.meshes[j], model.materials[model.meshMaterial[j]], transform);
-				model.materials[model.meshMaterial[i]].maps[MATERIAL_MAP_DIFFUSE].color = color;
-			}
+            DrawGLTFNode(model,node_id,matTransform,tint);
 		}
 	}
 }
 
-// Draw a model wires (with texture if set)
-void DrawGLTFModelSceneWires(GLTFModel model, int scene_id, Vector3 position, float scale, Color tint)
+// Draw a Model's scene wires (with texture if set)
+void DrawGLTFSceneWires(GLTFModel model, int scene_id, Matrix matTransform, Color tint)
 {
 	rlEnableWireMode();
 
-	DrawGLTFModelScene(model, scene_id, position, scale, tint);
-
-	rlDisableWireMode();
-}
-
-// Draw a model wires (with texture if set) with extended parameters
-void DrawGLTFModelSceneWiresEx(GLTFModel model, int scene_id, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale, Color tint)
-{
-	rlEnableWireMode();
-
-	DrawGLTFModelSceneEx(model, scene_id, position, rotationAxis, rotationAngle, scale, tint);
+	DrawGLTFScene(model, scene_id, matTransform, tint);
 
 	rlDisableWireMode();
 }
@@ -725,15 +739,16 @@ void UnloadGLTFModel(GLTFModel model)
 	RL_FREE(model.meshMaterial);
 
 	// Unload scenes and nodes
+    for (int i = 0; i< model.nodeCount; i++) RL_FREE(model.nodes[i].children);
 	RL_FREE(model.nodes);
 	for (int i = 0; i < model.sceneCount; i++) RL_FREE(model.scenes[i].nodes);
 	RL_FREE(model.scenes);
 
-	TRACELOG(LOG_INFO, "MODEL: Unloaded model (and meshes) from RAM and VRAM");
+	TRACELOG(LOG_INFO, "MODEL: Unloaded pModel (and meshes) from RAM and VRAM");
 }
 
 /**
- * Load glTF 2.0 model
+ * Load glTF 2.0 pModel
  * 		Function implemented by Wilhem Barbier(@wbrbr), with modifications by Tyler Bezera(@gamerfiend)
  * 		and Roy Qu(@royqh1979)
  *
@@ -742,7 +757,7 @@ void UnloadGLTFModel(GLTFModel model)
  * 		- Supports embedded (base64) or external textures
  * 		- Supports PBR metallic/roughness flow, loads material textures, values and colors
  * 		PBR specular/glossiness flow and extended texture flows not supported
- * 		- Supports multiple meshes per model (every primitives is loaded as a separate mesh)
+ * 		- Supports multiple meshes per pModel (every primitives is loaded as a separate mesh)
  *
  * 		RESTRICTIONS:
  * 		- Only triangle meshes supported
@@ -755,7 +770,7 @@ void UnloadGLTFModel(GLTFModel model)
  */
 GLTFModel  LoadGLTFModel(const char* fileName) {
 	GLTFModel  model = LoadGLTFModelFile(fileName);
-	// Make sure model transform is set to identity matrix!
+	// Make sure pModel transform is set to identity matrix!
 	model.transform = MatrixIdentity();
 
 	if (model.meshCount == 0)

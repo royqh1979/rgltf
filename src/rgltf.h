@@ -30,13 +30,15 @@
 extern "C" {            // Prevents name mangling of functions
 #endif
 
+struct GLTFModel;
+
 // glTF Model Node
 typedef struct GLTFNode {
-	struct GLTFNode *parent;   // Parent nodes;
-	struct GLTFNode *children; // Children nodes array;
+    int childrenCount;            // Children nodes count;
+	int *children;                // Children nodes id array;
 	// every primitive in the glTF as a separate raylib mesh, so we need to covert mesh id in glTF to interval
-	int meshStart;                // Start position of the interval in the model mesh array;
-	int meshEnd;                  // End position of the interval in the model mesh array;
+	int meshStart;                // Start position of the interval in the pModel mesh array;
+	int meshEnd;                  // End position of the interval in the pModel mesh array;
 	Transform transform;          // Transform for node meshes;
 	Matrix transformMatrix;       // Transform matrix for node meshes;
 } GLTFNode;
@@ -66,16 +68,18 @@ typedef struct GLTFModel {
 	int scene;              // Scene should be displayed
 } GLTFModel;
 
-RLAPI GLTFModel LoadGLTFModel(const char *fileName);	//Load GTLF model
+RLAPI GLTFModel LoadGLTFModel(const char *fileName);	//Load GTLF pModel
 RLAPI void UnloadGLTFModel(GLTFModel model);
-RLAPI void DrawGLTFModel(GLTFModel model, Vector3 position, float scale, Color tint);                           // Draw a model (with texture if set)
-RLAPI void DrawGLTFModelEx(GLTFModel model, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale, Color tint); // Draw a model with extended parameters
-RLAPI void DrawGLTFModelWires(GLTFModel model, Vector3 position, float scale, Color tint);                      // Draw a model wires (with texture if set)
-RLAPI void DrawGLTFModelWiresEx(GLTFModel model, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale, Color tint); // Draw a model wires (with texture if set) with extended parameters
-RLAPI void DrawGLTFModelScene(GLTFModel model, int scene_id, Vector3 position, float scale, Color tint);        // Draw a model's scene (with texture if set)
-RLAPI void DrawGLTFModelSceneEx(GLTFModel model, int scene_id, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale, Color tint); // Draw a model's scene with extended parameters
-RLAPI void DrawGLTFModelSceneWires(GLTFModel model, int scene_id, Vector3 position, float scale, Color tint);   // Draw a model's scene wires (with texture if set)
-RLAPI void DrawGLTFModelSceneWiresEx(GLTFModel model, int scene_id, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale, Color tint); // Draw a model's scene wires (with texture if set) with extended parameters
+RLAPI void DrawGLTFModel(GLTFModel model, Vector3 position, float scale, Color tint);                           // Draw a pModel (with texture if set)
+RLAPI void DrawGLTFModelEx(GLTFModel model, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale, Color tint); // Draw a pModel with extended parameters
+RLAPI void DrawGLTFModelWires(GLTFModel model, Vector3 position, float scale, Color tint);                      // Draw a pModel wires (with texture if set)
+RLAPI void DrawGLTFModelWiresEx(GLTFModel model, Vector3 position, Vector3 rotationAxis, float rotationAngle, Vector3 scale, Color tint); // Draw a pModel wires (with texture if set) with extended parameters
+
+RLAPI void DrawGLTFNode(GLTFModel model, int node_id, Matrix Transform, Color tint);        // Draw a Model's node (with texture if set)
+RLAPI void DrawGLTFNodeWires(GLTFModel model,int node_id, Matrix Transform, Color tint);   // Draw a Model's node wires (with texture if set)
+
+RLAPI void DrawGLTFScene(GLTFModel model,int scene_id, Matrix Transform, Color tint);        // Draw a Model's scene (with texture if set)
+RLAPI void DrawGLTFSceneWires(GLTFModel model,int scene_id, Matrix Transform, Color tint);   // Draw a Model's scene wires (with texture if set)
 
 #if defined(__cplusplus)
 }            // Prevents name mangling of functions
