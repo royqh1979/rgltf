@@ -109,9 +109,7 @@ static Image LoadImageFromCgltfImage(cgltf_image *cgltfImage, const char *texPat
 	return image;
 }
 
-static GLTFModel LoadGLTFModelFile(const char *fileName)
-{
-	// Macro to simplify attributes loading code
+// Macro to simplify attributes loading code
 #define LOAD_ATTRIBUTE(accesor, numComp, dataType, dstPtr) \
     { \
         int n = 0; \
@@ -126,6 +124,8 @@ static GLTFModel LoadGLTFModelFile(const char *fileName)
         }\
     }
 
+static GLTFModel LoadGLTFModelFile(const char *fileName)
+{
 	GLTFModel model = { 0 };
 	int *mesh_id_starts = NULL;
 	int *mesh_id_ends = NULL;
